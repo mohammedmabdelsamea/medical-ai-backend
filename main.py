@@ -30,26 +30,35 @@ async def predict(file: UploadFile = File(...)):
         response = requests.post(
             HF_API,
             headers={"Authorization": f"Bearer {HF_TOKEN}"},
-            data=image
+            data=image,
+            timeout=30
         )
 
-        # 🔍 DO NOT hide HF response anymore
+        # Always try JSON safely
         try:
             data = response.json()
         except:
             return {
-                "error": "HF did not return JSON",
-                "raw": response.text,
-                "status_code": response.status_code
+                "prediction": "error",
+                "confidence": 0.0
             }
 
-        # Return EVERYTHING clearly
+        # Valid Hugging Face output
+        if isinstance(data, list) and len(data) > 0:
+            return {
+                "prediction": data[0].get("label", "unknown"),
+                "confidence": float(data[0].get("score", 0.0))
+            }
+
+        # Hugging Face error case
         return {
-            "hf_status_code": response.status_code,
-            "hf_response": data
+            "prediction": "error",
+            "confidence": 0.0
         }
 
-    except Exception as e:
+    except:
+        # NEVER break Lovable
         return {
-            "error": str(e)
+            "prediction": "error",
+            "confidence": 0.0
         }
