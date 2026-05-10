@@ -19,7 +19,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    return {"ok": True}
 
 
 @app.post("/predict")
@@ -34,50 +34,24 @@ async def predict(file: UploadFile = File(...)):
             timeout=30
         )
 
-        # Try parse response safely
-        try:
-            data = response.json()
-        except:
-            return {
-                "status": "error",
-                "message": "Invalid response from model"
-            }
+        data = response.json()
 
-        # CASE 1: Hugging Face still loading model
-        if isinstance(data, dict) and "error" in data:
-            return {
-                "status": "loading",
-                "message": data["error"]
-            }
+        # 🔥 STRICT OUTPUT ONLY (VERY IMPORTANT FOR LOVABLE)
 
-        # CASE 2: valid prediction
         if isinstance(data, list) and len(data) > 0:
-            top = data[0]
-            score = float(top.get("score", 0))
-
-            # 🔥 IMPORTANT FIX: prevent fake 0.0 confidence
-            if score < 0.01:
-                return {
-                    "status": "low_confidence",
-                    "prediction": top.get("label", "unknown"),
-                    "confidence": None,
-                    "message": "Model unsure, try clearer image"
-                }
-
             return {
-                "status": "success",
-                "prediction": top.get("label", "unknown"),
-                "confidence": round(score, 3)
+                "prediction": str(data[0].get("label", "")),
+                "confidence": float(data[0].get("score", 0.0))
             }
 
-        # fallback
+        # fallback ALWAYS same structure
         return {
-            "status": "error",
-            "message": "Unexpected model response"
+            "prediction": "unknown",
+            "confidence": 0.0
         }
 
-    except Exception as e:
+    except:
         return {
-            "status": "error",
-            "message": str(e)
+            "prediction": "unknown",
+            "confidence": 0.0
         }
