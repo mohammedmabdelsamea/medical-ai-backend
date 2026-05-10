@@ -12,8 +12,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-HF_SPACE_URL = https://mohammedabdelsamea-medical-ai-test.hf.space/run/predict
-
+HF_SPACE_URL = "https://mohammedabdelsamea-medical-ai-test.hf.space/run/predict"
 
 @app.get("/")
 def root():
