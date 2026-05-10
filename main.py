@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import requests
-import os
 
 app = FastAPI()
 
@@ -13,8 +12,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔥 THIS IS THE KEY CHANGE (SPACE endpoint, not /models/)
-HF_SPACE_URL = "https://YOUR-SPACE-NAME.hf.space/run/predict"
+# 🔥 YOUR SPACE URL (replace this)
+HF_SPACE_URL = mohammedabdelsamea/medical-ai-test
 
 
 @app.get("/")
@@ -27,13 +26,10 @@ async def predict(file: UploadFile = File(...)):
     try:
         image = await file.read()
 
-        # Spaces usually expect multipart file upload
-        files = {"data": image}
-
+        # Spaces expect "files"
         response = requests.post(
             HF_SPACE_URL,
-            files=files,
-            timeout=60
+            files={"data": image}
         )
 
         print("STATUS:", response.status_code)
@@ -42,16 +38,13 @@ async def predict(file: UploadFile = File(...)):
         if response.status_code != 200:
             return {
                 "status": "error",
-                "message": "Space request failed",
-                "status_code": response.status_code,
+                "message": "Space error",
                 "raw": response.text
             }
 
-        data = response.json()
-
         return {
             "status": "success",
-            "result": data
+            "result": response.json()
         }
 
     except Exception as e:
