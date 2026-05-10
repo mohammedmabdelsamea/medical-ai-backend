@@ -2,6 +2,3 @@ fastapi
 uvicorn
 requests
 python-multipart
-torch
-transformers
-pillow
