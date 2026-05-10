@@ -14,10 +14,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ API-ready Hugging Face model (IMPORTANT FIX)
+# Hugging Face API endpoint
 HF_API = "https://api-inference.huggingface.co/models/google/vit-base-patch16-224"
 
-# Token from Render environment variables
+# Token from Render environment
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 
@@ -29,35 +29,46 @@ def root():
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        # Read image file
+        # Read uploaded image
         image = await file.read()
 
-        # Call Hugging Face Inference API
+        # Debug logs (IMPORTANT for Render)
+        print("HF_TOKEN EXISTS:", HF_TOKEN is not None)
+        print("HF_API:", HF_API)
+
+        # ✅ FIX: Hugging Face expects "files", NOT raw data
         response = requests.post(
             HF_API,
             headers={
                 "Authorization": f"Bearer {HF_TOKEN}"
             },
-            data=image,
+            files={"file": image},
             timeout=30
         )
 
-        print("HF STATUS:", response.status_code)
-        print("HF RESPONSE:", response.text)
+        print("HF STATUS CODE:", response.status_code)
+        print("HF RESPONSE TEXT:", response.text)
 
-        # Handle HTTP errors
+        # If API fails
         if response.status_code != 200:
             return {
                 "status": "error",
-                "message": "Hugging Face API error",
+                "message": "HF API error",
                 "status_code": response.status_code,
                 "response": response.text
             }
 
-        # Parse JSON
-        data = response.json()
+        # Try parsing JSON safely
+        try:
+            data = response.json()
+        except:
+            return {
+                "status": "error",
+                "message": "Invalid JSON from HF",
+                "raw": response.text
+            }
 
-        # Handle model loading or HF errors
+        # HF model error (loading, blocked, etc.)
         if isinstance(data, dict) and "error" in data:
             return {
                 "status": "error",
