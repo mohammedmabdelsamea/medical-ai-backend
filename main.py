@@ -14,7 +14,6 @@ app.add_middleware(
 )
 
 HF_API = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
-
 HF_TOKEN = os.environ["HF_TOKEN"]
 
 @app.get("/")
@@ -32,7 +31,11 @@ async def predict(file: UploadFile = File(...)):
             data=image
         )
 
-        return response.json()
+        # IMPORTANT: return raw text for debugging first
+        return {
+            "status_code": response.status_code,
+            "response": response.text
+        }
 
     except Exception as e:
         return {"error": str(e)}
