@@ -25,54 +25,39 @@ async def predict(file: UploadFile = File(...)):
     try:
         image = await file.read()
 
-        # Call Hugging Face
         response = requests.post(
             HF_API,
             headers={"Authorization": f"Bearer {HF_TOKEN}"},
             data=image
         )
 
-        # Always capture raw text first (prevents crashes)
-        raw_text = response.text
+        data = response.json()
 
-        # Try JSON parse safely
-        try:
-            data = response.json()
-        except:
+        # FORCE SAFE OUTPUT FORMAT FOR LOVABLE
+        if isinstance(data, list) and len(data) > 0:
             return {
-                "ok": False,
-                "error": "HF returned non-JSON response",
-                "raw": raw_text,
-                "status_code": response.status_code
+                "prediction": str(data[0].get("label", "unknown")),
+                "confidence": float(data[0].get("score", 0.0)),
+                "raw": data
             }
 
-        # Handle Hugging Face error format
         if isinstance(data, dict) and "error" in data:
             return {
-                "ok": False,
-                "error": data["error"],
-                "status_code": response.status_code
+                "prediction": "error",
+                "confidence": 0.0,
+                "error": data["error"]
             }
 
-        # Handle normal classification output
-        if isinstance(data, list) and len(data) > 0:
-            top = data[0]
-            return {
-                "ok": True,
-                "prediction": top.get("label"),
-                "confidence": top.get("score"),
-                "all": data
-            }
-
-        # Unexpected structure
         return {
-            "ok": False,
-            "error": "Unexpected HF response format",
+            "prediction": "unknown",
+            "confidence": 0.0,
+            "error": "Unexpected response format",
             "raw": data
         }
 
     except Exception as e:
         return {
-            "ok": False,
+            "prediction": "error",
+            "confidence": 0.0,
             "error": str(e)
         }
