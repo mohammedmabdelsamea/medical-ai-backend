@@ -5,7 +5,6 @@ import os
 
 app = FastAPI()
 
-# Allow Lovable frontend to access backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,52 +13,66 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Hugging Face model endpoint
 HF_API = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
-
-# Secure token from Render environment variables
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 @app.get("/")
 def home():
-    return {"status": "backend running"}
+    return {"status": "ok"}
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        # Read image file
         image = await file.read()
 
-        # Call Hugging Face API
+        # Call Hugging Face
         response = requests.post(
             HF_API,
             headers={"Authorization": f"Bearer {HF_TOKEN}"},
             data=image
         )
 
-        # Try to parse JSON safely
+        # Always capture raw text first (prevents crashes)
+        raw_text = response.text
+
+        # Try JSON parse safely
         try:
-            result = response.json()
+            data = response.json()
         except:
             return {
-                "error": "Invalid JSON from Hugging Face",
-                "raw_response": response.text
+                "ok": False,
+                "error": "HF returned non-JSON response",
+                "raw": raw_text,
+                "status_code": response.status_code
             }
 
-        # Case 1: normal prediction (list of labels)
-        if isinstance(result, list):
+        # Handle Hugging Face error format
+        if isinstance(data, dict) and "error" in data:
             return {
-                "prediction": result[0]["label"],
-                "confidence": result[0]["score"],
-                "all_predictions": result
+                "ok": False,
+                "error": data["error"],
+                "status_code": response.status_code
             }
 
-        # Case 2: model loading / error response
+        # Handle normal classification output
+        if isinstance(data, list) and len(data) > 0:
+            top = data[0]
+            return {
+                "ok": True,
+                "prediction": top.get("label"),
+                "confidence": top.get("score"),
+                "all": data
+            }
+
+        # Unexpected structure
         return {
-            "error": result
+            "ok": False,
+            "error": "Unexpected HF response format",
+            "raw": data
         }
 
     except Exception as e:
         return {
+            "ok": False,
             "error": str(e)
         }
