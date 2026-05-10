@@ -4,6 +4,7 @@ import requests
 
 app = FastAPI()
 
+# Allow Lovable frontend to talk to backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -12,43 +13,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Your Hugging Face Space endpoint
 HF_SPACE_URL = "https://mohammedabdelsamea-medical-ai-test.hf.space/run/predict"
 
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    return {"status": "ok", "message": "backend running"}
 
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        image = await file.read()
+        # Read image from request
+        image_bytes = await file.read()
 
+        # Send to Hugging Face Space
         response = requests.post(
             HF_SPACE_URL,
-            files={"data": image},
+            files={"data": image_bytes},
             timeout=60
         )
 
-        # If Space fails
+        # If Hugging Face fails
         if response.status_code != 200:
             return {
                 "status": "error",
-                "message": "Space request failed"
+                "step": "hf_request_failed",
+                "status_code": response.status_code,
+                "response_text": response.text[:500]
             }
 
-        data = response.json()
+        # Try to parse JSON safely
+        try:
+            data = response.json()
+        except Exception:
+            return {
+                "status": "error",
+                "step": "json_parse_error",
+                "response_text": response.text[:500]
+            }
 
-        # 🧠 NORMALISE RESPONSE FOR LOVABLE
-        # (this is the critical fix)
-
-        if isinstance(data, dict):
-            prediction = data.get("prediction", "unknown")
-            confidence = data.get("confidence", 0.0)
-        else:
-            prediction = str(data)
-            confidence = 0.0
+        # Normalize response so Lovable NEVER breaks
+        prediction = data.get("prediction", "unknown") if isinstance(data, dict) else str(data)
+        confidence = data.get("confidence", 0.0) if isinstance(data, dict) else 0.0
 
         return {
             "status": "success",
@@ -59,5 +67,6 @@ async def predict(file: UploadFile = File(...)):
     except Exception as e:
         return {
             "status": "error",
+            "step": "backend_exception",
             "message": str(e)
         }
