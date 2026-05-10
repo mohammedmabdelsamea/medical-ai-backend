@@ -14,7 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-HF_API = "https://api-inference.huggingface.co/models/google/vit-base-patch16-224"
+HF_API = "https://api-inference.huggingface.co/models/microsoft/resnet-50"
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 
