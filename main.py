@@ -33,32 +33,23 @@ async def predict(file: UploadFile = File(...)):
             data=image
         )
 
-        data = response.json()
-
-        # 🧠 STRICT NORMALIZATION (IMPORTANT PART)
-
-        if isinstance(data, list) and len(data) > 0:
+        # 🔍 DO NOT hide HF response anymore
+        try:
+            data = response.json()
+        except:
             return {
-                "prediction": str(data[0].get("label", "unknown")),
-                "confidence": float(data[0].get("score", 0.0))
+                "error": "HF did not return JSON",
+                "raw": response.text,
+                "status_code": response.status_code
             }
 
-        if isinstance(data, dict) and "error" in data:
-            # STILL return valid structure (THIS FIXES LOVABLE)
-            return {
-                "prediction": "error",
-                "confidence": 0.0
-            }
-
-        # fallback (still valid format!)
+        # Return EVERYTHING clearly
         return {
-            "prediction": "unknown",
-            "confidence": 0.0
+            "hf_status_code": response.status_code,
+            "hf_response": data
         }
 
-    except:
-        # NEVER break frontend
+    except Exception as e:
         return {
-            "prediction": "error",
-            "confidence": 0.0
+            "error": str(e)
         }
