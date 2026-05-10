@@ -34,31 +34,50 @@ async def predict(file: UploadFile = File(...)):
             timeout=30
         )
 
-        # Always try JSON safely
+        # Try parse response safely
         try:
             data = response.json()
         except:
             return {
-                "prediction": "error",
-                "confidence": 0.0
+                "status": "error",
+                "message": "Invalid response from model"
             }
 
-        # Valid Hugging Face output
-        if isinstance(data, list) and len(data) > 0:
+        # CASE 1: Hugging Face still loading model
+        if isinstance(data, dict) and "error" in data:
             return {
-                "prediction": data[0].get("label", "unknown"),
-                "confidence": float(data[0].get("score", 0.0))
+                "status": "loading",
+                "message": data["error"]
             }
 
-        # Hugging Face error case
+        # CASE 2: valid prediction
+        if isinstance(data, list) and len(data) > 0:
+            top = data[0]
+            score = float(top.get("score", 0))
+
+            # 🔥 IMPORTANT FIX: prevent fake 0.0 confidence
+            if score < 0.01:
+                return {
+                    "status": "low_confidence",
+                    "prediction": top.get("label", "unknown"),
+                    "confidence": None,
+                    "message": "Model unsure, try clearer image"
+                }
+
+            return {
+                "status": "success",
+                "prediction": top.get("label", "unknown"),
+                "confidence": round(score, 3)
+            }
+
+        # fallback
         return {
-            "prediction": "error",
-            "confidence": 0.0
+            "status": "error",
+            "message": "Unexpected model response"
         }
 
-    except:
-        # NEVER break Lovable
+    except Exception as e:
         return {
-            "prediction": "error",
-            "confidence": 0.0
+            "status": "error",
+            "message": str(e)
         }
