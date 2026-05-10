@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import os
 
 app = FastAPI()
 
@@ -12,11 +13,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ❗ USE MODEL API, NOT SPACE API
 HF_API_URL = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
 
-# your token from Render env
-import os
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 headers = {
@@ -32,29 +30,29 @@ def root():
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        image_bytes = await file.read()
+        image = await file.read()
 
         response = requests.post(
             HF_API_URL,
             headers=headers,
-            data=image_bytes
+            data=image
         )
 
         print("HF STATUS:", response.status_code)
-        print("HF RAW:", response.text[:1000])
+        print("HF RAW:", response.text[:500])
 
         if response.status_code != 200:
             return {
                 "status": "error",
                 "step": "hf_failed",
                 "code": response.status_code,
-                "raw": response.text[:500]
+                "raw": response.text[:300]
             }
 
         result = response.json()
 
         # HF returns list of predictions
-        top = result[0] if isinstance(result, list) else result
+        top = result[0]
 
         return {
             "status": "success",
@@ -65,6 +63,6 @@ async def predict(file: UploadFile = File(...)):
     except Exception as e:
         return {
             "status": "error",
-            "step": "backend_exception",
+            "step": "exception",
             "message": str(e)
         }
