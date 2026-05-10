@@ -5,7 +5,7 @@ import os
 
 app = FastAPI()
 
-# Allow Lovable frontend
+# Allow Lovable frontend to connect
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +17,7 @@ app.add_middleware(
 # Hugging Face model endpoint
 HF_API = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
 
-# Token from Render environment
+# Token from Render environment variables
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 
@@ -29,7 +29,7 @@ def root():
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        # Read image
+        # Read uploaded image
         image = await file.read()
 
         # Call Hugging Face API
@@ -40,10 +40,13 @@ async def predict(file: UploadFile = File(...)):
             timeout=30
         )
 
-        # Try to parse response safely
+        # DEBUG: show raw response text
+        print("HF RESPONSE TEXT:", response.text)
+
+        # Try JSON parsing safely
         try:
             data = response.json()
-        except:
+        except Exception as e:
             return {
                 "status": "error",
                 "message": "HF did not return JSON",
@@ -51,15 +54,15 @@ async def predict(file: UploadFile = File(...)):
                 "status_code": response.status_code
             }
 
-        # 🔍 DEBUG: If HF returns error
+        # CASE 1: Hugging Face returned error
         if isinstance(data, dict) and "error" in data:
             return {
                 "status": "error",
                 "message": data["error"],
-                "hf_response": data
+                "hf_raw": data
             }
 
-        # ✅ SUCCESS CASE
+        # CASE 2: valid prediction
         if isinstance(data, list) and len(data) > 0:
             top = data[0]
 
@@ -70,11 +73,11 @@ async def predict(file: UploadFile = File(...)):
                 "all_predictions": data
             }
 
-        # ❌ Unexpected format
+        # CASE 3: unexpected format
         return {
             "status": "error",
             "message": "Unexpected Hugging Face response format",
-            "hf_response": data
+            "hf_raw": data
         }
 
     except Exception as e:
