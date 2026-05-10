@@ -15,7 +15,7 @@ app.add_middleware(
 
 HF_API = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
 
-HF_TOKEN = "PASTE_YOUR_NEW_TOKEN_HERE"
+HF_TOKEN = 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
 
 @app.get("/")
 def root():
