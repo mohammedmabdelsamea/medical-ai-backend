@@ -1,12 +1,14 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import uvicorn
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -14,6 +16,10 @@ app.add_middleware(
 HF_API = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
 
 HF_TOKEN = "PASTE_YOUR_NEW_TOKEN_HERE"
+
+@app.get("/")
+def root():
+    return {"status": "backend running"}
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
