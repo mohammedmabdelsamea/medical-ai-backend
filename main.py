@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import requests
-import base64
 
 app = FastAPI()
 
@@ -13,8 +12,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# IMPORTANT: use Space ROOT endpoint (NOT /run/predict)
-HF_SPACE_URL = "https://mohammedabdelsamea-medical-ai-test.hf.space/api/predict"
+# ❗ USE MODEL API, NOT SPACE API
+HF_API_URL = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
+
+# your token from Render env
+import os
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+headers = {
+    "Authorization": f"Bearer {HF_TOKEN}"
+}
 
 
 @app.get("/")
@@ -27,51 +34,32 @@ async def predict(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
 
-        # convert image to base64 (more reliable for Spaces)
-        encoded = base64.b64encode(image_bytes).decode("utf-8")
-
-        payload = {
-            "data": [f"data:image/jpeg;base64,{encoded}"]
-        }
-
         response = requests.post(
-            HF_SPACE_URL,
-            json=payload,
-            timeout=60
+            HF_API_URL,
+            headers=headers,
+            data=image_bytes
         )
 
         print("HF STATUS:", response.status_code)
         print("HF RAW:", response.text[:1000])
 
-        # fail-safe
         if response.status_code != 200:
             return {
                 "status": "error",
-                "step": "hf_request_failed",
+                "step": "hf_failed",
                 "code": response.status_code,
                 "raw": response.text[:500]
             }
 
-        try:
-            data = response.json()
-        except Exception:
-            return {
-                "status": "error",
-                "step": "json_parse_failed",
-                "raw": response.text[:500]
-            }
+        result = response.json()
 
-        # Gradio usually returns: data["data"]
-        result = None
-
-        if isinstance(data, dict) and "data" in data:
-            result = data["data"]
-        else:
-            result = data
+        # HF returns list of predictions
+        top = result[0] if isinstance(result, list) else result
 
         return {
             "status": "success",
-            "result": result
+            "prediction": top.get("label"),
+            "confidence": top.get("score")
         }
 
     except Exception as e:
