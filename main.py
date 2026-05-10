@@ -14,15 +14,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Correct Hugging Face Inference API endpoint
+# Hugging Face endpoint (correct inference API)
 HF_API = "https://api-inference.huggingface.co/models/HumaP/vit_base_patch16_224_in21k_lung_and_colon_histopathology_pt"
 
-HF_TOKEN = os.environ.get("HF_TOKEN")
+# Token from Render environment
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "message": "Backend is running"
+    }
 
 
 @app.post("/predict")
@@ -31,7 +35,11 @@ async def predict(file: UploadFile = File(...)):
         # Read image
         image = await file.read()
 
-        # Call Hugging Face properly
+        # DEBUG INFO (IMPORTANT)
+        print("HF_TOKEN EXISTS:", HF_TOKEN is not None)
+        print("HF_API:", HF_API)
+
+        # Call Hugging Face
         response = requests.post(
             HF_API,
             headers={
@@ -42,29 +50,33 @@ async def predict(file: UploadFile = File(...)):
             timeout=30
         )
 
-        # If request fails at HTTP level
+        print("HF STATUS CODE:", response.status_code)
+        print("HF RAW RESPONSE:", response.text)
+
+        # HTTP error from Hugging Face
         if response.status_code != 200:
             return {
                 "status": "error",
-                "message": "Hugging Face API error",
+                "stage": "hf_http_error",
                 "status_code": response.status_code,
-                "raw": response.text
+                "response": response.text
             }
 
-        # Try JSON parsing
+        # Parse JSON safely
         try:
             data = response.json()
-        except:
+        except Exception:
             return {
                 "status": "error",
-                "message": "Invalid JSON from Hugging Face",
-                "raw": response.text
+                "stage": "invalid_json",
+                "response": response.text
             }
 
-        # Handle HF model loading or errors
+        # Hugging Face model error (loading, etc.)
         if isinstance(data, dict) and "error" in data:
             return {
                 "status": "error",
+                "stage": "hf_model_error",
                 "message": data["error"]
             }
 
@@ -78,15 +90,16 @@ async def predict(file: UploadFile = File(...)):
                 "confidence": round(float(top.get("score", 0.0)), 4)
             }
 
-        # Fallback (no fake "unknown")
+        # Unexpected format
         return {
             "status": "error",
-            "message": "Unexpected model response format",
-            "raw": data
+            "stage": "unexpected_format",
+            "response": data
         }
 
     except Exception as e:
         return {
             "status": "error",
+            "stage": "exception",
             "message": str(e)
         }
