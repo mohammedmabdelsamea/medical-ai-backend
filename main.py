@@ -19,7 +19,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 
 @app.get("/")
 def root():
-    return {"ok": True}
+    return {"status": "ok"}
 
 
 @app.post("/predict")
@@ -34,24 +34,40 @@ async def predict(file: UploadFile = File(...)):
             timeout=30
         )
 
-        data = response.json()
-
-        # 🔥 STRICT OUTPUT ONLY (VERY IMPORTANT FOR LOVABLE)
-
-        if isinstance(data, list) and len(data) > 0:
+        # Try parse response safely
+        try:
+            data = response.json()
+        except:
             return {
-                "prediction": str(data[0].get("label", "")),
-                "confidence": float(data[0].get("score", 0.0))
+                "status": "error",
+                "message": "Invalid response from model"
             }
 
-        # fallback ALWAYS same structure
+        # 🚨 CASE 1: model loading
+        if isinstance(data, dict) and "error" in data:
+            return {
+                "status": "loading",
+                "message": data["error"]
+            }
+
+        # 🚨 CASE 2: valid prediction
+        if isinstance(data, list) and len(data) > 0:
+            top = data[0]
+
+            return {
+                "status": "success",
+                "prediction": top.get("label"),
+                "confidence": round(float(top.get("score", 0.0)), 3)
+            }
+
+        # 🚨 fallback (NO "unknown")
         return {
-            "prediction": "unknown",
-            "confidence": 0.0
+            "status": "error",
+            "message": "Unexpected model output"
         }
 
-    except:
+    except Exception as e:
         return {
-            "prediction": "unknown",
-            "confidence": 0.0
+            "status": "error",
+            "message": str(e)
         }
